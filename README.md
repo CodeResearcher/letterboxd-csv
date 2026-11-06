@@ -97,8 +97,11 @@ fails the deploy instead of being published.
 
 Two things to set up once in the repository:
 
-1. **Settings → Pages → Build and deployment → Source: GitHub Actions.** The workflow also passes
-   `enablement: true`, which turns Pages on automatically on the first run.
+1. **Settings → Pages → Build and deployment → Source: GitHub Actions.** Already enabled for this
+   repository. The workflow passes `enablement: true` as well, but the `GITHUB_TOKEN` cannot
+   *create* the Pages site on a repo where it has never been turned on — that first step needs a
+   repo admin, either through this setting or `POST /repos/{owner}/{repo}/pages` with
+   `{"build_type":"workflow"}`.
 2. **Settings → Secrets and variables → Actions → New repository secret**, named
    `VITE_TMDB_API_KEY`. Without it the deploy still succeeds, but the app shows its "set a TMDB
    key" banner to every visitor.
