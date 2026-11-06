@@ -1,0 +1,76 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  # Allows re-deploying from the Actions tab without a commit.
+  workflow_dispatch:
+
+# Least privilege: only what Pages deployment needs.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Let an in-flight deploy finish rather than cancelling it mid-publish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # The barcode-database keys are dev-only and must not reach a deploy, so
+      # the policy guard runs before anything is built.
+      - name: Check key policy
+        run: npm run check:keys
+
+      - run: npm test
+
+      # Only TMDB belongs in a published bundle. A repo secret keeps it out of
+      # the repository; if it is unset the app still builds and tells the user
+      # to configure a key, rather than failing the deploy.
+      - name: Build
+        env:
+          VITE_TMDB_API_KEY: ${{ secrets.VITE_TMDB_API_KEY }}
+          # Derived from the repo name so a fork or rename keeps working.
+          PAGES_BASE: /${{ github.event.repository.name }}/
+        run: npm run build
+
+      # Fail the deploy rather than publish a bundle with a stray barcode key.
+      - name: Verify no barcode keys were bundled
+        run: |
+          if grep -rEq '893fba35|15B1F7BC|074102AD' dist/; then
+            echo "::error::A barcode-database key was bundled into the build."
+            exit 1
+          fi
+
+      # `enablement: true` turns Pages on if it was never enabled, so the first
+      # deploy does not fail with "Get Pages site failed".
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

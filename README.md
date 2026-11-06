@@ -89,6 +89,43 @@ npm run preview     # serve the production build
 To test on a real phone, use an HTTPS tunnel (for example `cloudflared tunnel --url
 http://localhost:5173`) or deploy a preview build.
 
+## Deploying to GitHub Pages
+
+`.github/workflows/deploy.yml` builds and publishes the app on every push to `main`. It runs the
+key-policy guard, the tests, and a final scan of `dist/` before uploading, so a stray barcode key
+fails the deploy instead of being published.
+
+Two things to set up once in the repository:
+
+1. **Settings → Pages → Build and deployment → Source: GitHub Actions.** The workflow also passes
+   `enablement: true`, which turns Pages on automatically on the first run.
+2. **Settings → Secrets and variables → Actions → New repository secret**, named
+   `VITE_TMDB_API_KEY`. Without it the deploy still succeeds, but the app shows its "set a TMDB
+   key" banner to every visitor.
+
+The site is served from a subpath, `https://coderesearcher.github.io/letterboxd-csv.github.io/`,
+so absolute paths like `/icons/...` would 404. `vite.config.ts` derives every path from one value,
+`PAGES_BASE`, which defaults to `/<repo>/` and is passed explicitly by the workflow
+(`/${{ github.event.repository.name }}/`) so forks and renames work. For a root deployment build
+with `PAGES_BASE=/ npm run build`.
+
+That derivation matters for more than the JS bundle: the PWA manifest's `start_url`, `scope` and
+icon URLs are not rewritten by Vite, so they are built from the same value, and the service
+worker's `navigateFallback` is relative (`index.html`) so it resolves inside the subpath scope.
+
+Note that the repository name `letterboxd-csv.github.io` is a *project* site, not a user site, so
+the URL keeps the repo name as a path segment. A user site would require renaming the repo to
+`CodeResearcher.github.io` and building with `PAGES_BASE=/`.
+
+To preview a subpath build locally:
+
+```bash
+npm run build
+mkdir -p /tmp/gh/letterboxd-csv.github.io && cp -r dist/* /tmp/gh/letterboxd-csv.github.io/
+npx http-server /tmp/gh -p 4301
+# open http://localhost:4301/letterboxd-csv.github.io/
+```
+
 ## Adding a barcode database
 
 The provider layer exists so this is a small, local change:
