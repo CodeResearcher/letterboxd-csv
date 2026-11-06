@@ -12,7 +12,7 @@ import { VitePWA } from "vite-plugin-pwa";
  *
  * Override with `PAGES_BASE=/ npm run build` for a root deployment.
  */
-const PAGES_BASE = readEnv("PAGES_BASE") ?? "/letterboxd-csv.github.io/";
+const PAGES_BASE = readEnv("PAGES_BASE") ?? "/letterboxd-csv/";
 
 /** `process` is not typed here (no @types/node), so read it defensively. */
 function readEnv(name: string): string | undefined {

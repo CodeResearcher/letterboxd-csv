@@ -106,7 +106,7 @@ Two things to set up once in the repository:
    `VITE_TMDB_API_KEY`. Without it the deploy still succeeds, but the app shows its "set a TMDB
    key" banner to every visitor.
 
-The site is served from a subpath, `https://coderesearcher.github.io/letterboxd-csv.github.io/`,
+The site is served from a subpath, `https://coderesearcher.github.io/letterboxd-csv/`,
 so absolute paths like `/icons/...` would 404. `vite.config.ts` derives every path from one value,
 `PAGES_BASE`, which defaults to `/<repo>/` and is passed explicitly by the workflow
 (`/${{ github.event.repository.name }}/`) so forks and renames work. For a root deployment build
@@ -116,17 +116,17 @@ That derivation matters for more than the JS bundle: the PWA manifest's `start_u
 icon URLs are not rewritten by Vite, so they are built from the same value, and the service
 worker's `navigateFallback` is relative (`index.html`) so it resolves inside the subpath scope.
 
-Note that the repository name `letterboxd-csv.github.io` is a *project* site, not a user site, so
-the URL keeps the repo name as a path segment. A user site would require renaming the repo to
-`CodeResearcher.github.io` and building with `PAGES_BASE=/`.
+The repository is a *project* site, not a user site, so the URL keeps the repo name as a path
+segment. A user site would require renaming the repo to `CodeResearcher.github.io` and building
+with `PAGES_BASE=/`.
 
 To preview a subpath build locally:
 
 ```bash
 npm run build
-mkdir -p /tmp/gh/letterboxd-csv.github.io && cp -r dist/* /tmp/gh/letterboxd-csv.github.io/
+mkdir -p /tmp/gh/letterboxd-csv && cp -r dist/* /tmp/gh/letterboxd-csv/
 npx http-server /tmp/gh -p 4301
-# open http://localhost:4301/letterboxd-csv.github.io/
+# open http://localhost:4301/letterboxd-csv/
 ```
 
 ## Adding a barcode database
