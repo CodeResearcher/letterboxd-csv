@@ -28,10 +28,16 @@ function normalizeBase(value: string): string {
   return value.endsWith("/") ? value : `${value}/`;
 }
 
-export default defineConfig(({ command }) => {
+export default defineConfig(({ command, isPreview }) => {
   // The dev server still runs at the origin root: deep links and HMR are
   // simpler there, and nothing about the Pages subpath matters locally.
-  const base = command === "build" ? normalizeBase(PAGES_BASE) : "/";
+  //
+  // `vite preview` reports `command: "serve"` too, but it serves the *built*
+  // `dist`, whose asset paths and service worker already bake in `PAGES_BASE`.
+  // Without the `isPreview` case the preview server would answer at `/` while
+  // `index.html` asks for `/letterboxd-csv/assets/...`, so every asset 404s and
+  // the registered service worker quietly serves a stale build instead.
+  const base = command === "build" || isPreview ? normalizeBase(PAGES_BASE) : "/";
 
   return {
     base,

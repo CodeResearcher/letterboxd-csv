@@ -15,24 +15,21 @@ This is a PWA where you can provide keys for EAN or UPC database API to scan a b
 
 ## APIs
 
+Log number of requests per API
+
 ### Barcode Database APIs
 
 EAN (European Article Number) or UPC (Universal Product Code) databases to look for film title. Currently supported databases in order of priority:
 
-- https://upcmdb.com/api -> API Key: `VITE_UPCMDB_API_KEY`
-- https://upcdatabase.org/api -> API Key: `VITE_UPCDATABASE_API_KEY`
-- https://eandata.com/feed/ -> API Key: `VITE_EANDATA_API_KEY`
-- https://www.upcitemdb.com/api/explorer#!/lookup/get_trial_lookup -> API Key: `VITE_UPCITEMDB_API_KEY` (optional)
-
-Keys live in `.env.local`, which is gitignored. `.env.example` lists the variable names; never
-commit real keys. See "## Secrets" below.
+- https://upcmdb.com/api
+- https://upcdatabase.org/api
+- https://eandata.com/feed/
+- https://www.upcitemdb.com/api/explorer#!/lookup/get_trial_lookup
 
 ### TMDB API
 
 General API documentation:
 https://developer.themoviedb.org/reference/getting-started
-
-API Key: `VITE_TMDB_API_KEY` (in `.env.local`, gitignored)
 
 Endpoint to search for film and movie by title:
 https://api.themoviedb.org/3/search/multi
@@ -45,7 +42,12 @@ https://api-docs.letterboxd.com/
 Letterboxd CSV format description:
 https://letterboxd.com/about/importing-data/
 
+## CORS Proxy
+
+Build Cloudflare Worker to host CORS Proxy and use as default.
+
 ## PWA UI
 
 - when starting the PWA first time and no API keys are available, give user an option to enter API key for all supported providers
 - show title and poster for TMDB results to the user and provide an option to confirm
+- run the PWA as a GitHub page

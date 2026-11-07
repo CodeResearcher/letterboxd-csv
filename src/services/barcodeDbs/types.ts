@@ -9,7 +9,6 @@ export interface CredentialField {
   secret?: boolean;
   /** A provider is unusable until every required field has a value. */
   required?: boolean;
-  helpText?: string;
 }
 
 export type LookupFailureKind = "auth" | "rate_limit" | "network" | "cors" | "unknown";
@@ -43,8 +42,6 @@ export interface BarcodeProvider {
   id: string;
   /** Shown in Settings and in "found via" labels. */
   label: string;
-  /** Short note shown under the provider name, e.g. about the trial limit. */
-  note?: string;
   credentialFields: CredentialField[];
   /**
    * True when the provider's API does not send CORS headers, so browser calls

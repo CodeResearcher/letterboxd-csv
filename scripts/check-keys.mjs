@@ -22,6 +22,14 @@ const BARCODE_VARS = [
   "VITE_UPCITEMDB_API_KEY",
 ];
 
+/**
+ * Env vars whose value is public by design, so a literal copy in tracked source
+ * is not a leak. `VITE_CORS_PROXY_URL` is compiled into the bundle on purpose
+ * and has a built-in default in `src/config/envKeys.ts`; the Worker behind it
+ * carries no credential. Everything else in `.env` is still treated as secret.
+ */
+const PUBLIC_VARS = new Set(["VITE_CORS_PROXY_URL"]);
+
 /** The single module allowed to read them, and only behind the DEV guard. */
 const GATED_MODULE = "src/config/envKeys.ts";
 
@@ -80,11 +88,11 @@ if (ERRORS.length > 0) {
 console.log("Key policy OK: barcode keys are reachable in development only.");
 
 /**
- * Values from the developer's own `.env.development.local`, if present. Used to
+ * Values from the developer's own `.env.local`, if present. Used to
  * detect a key copy-pasted into source. A missing file is fine (CI, fresh clone).
  */
 function localSecretValues() {
-  const envFiles = [".env.development.local", ".env.local"];
+  const envFiles = [".env.local"];
   const found = [];
   for (const envFile of envFiles) {
     let text;
@@ -97,6 +105,7 @@ function localSecretValues() {
       const match = /^([A-Z0-9_]+)=(.*)$/.exec(line.trim());
       if (!match) continue;
       const [, name, value] = match;
+      if (PUBLIC_VARS.has(name)) continue;
       // Short or obviously-placeholder values would produce false positives.
       if (value.trim().length >= 12) found.push({ name, value: value.trim() });
     }

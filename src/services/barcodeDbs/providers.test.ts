@@ -190,7 +190,7 @@ describe("upcdatabase provider mapping", () => {
     ).toMatchObject({ status: "error", kind: "auth" });
   });
 
-  it("sends the bearer token and goes through the proxy when configured", async () => {
+  it("puts the key in the query string and goes through the proxy when configured", async () => {
     const spy = vi.fn(async () => jsonResponse({ success: true, title: "The Matrix" }));
     globalThis.fetch = spy as unknown as typeof fetch;
     await upcdatabaseProvider.lookup({
@@ -200,10 +200,14 @@ describe("upcdatabase provider mapping", () => {
       proxyBaseUrl: "https://proxy.example/",
     });
     const [url, init] = spy.mock.calls[0] as unknown as [string, RequestInit];
+    // The API rejects `Authorization: Bearer`, and a pass-through proxy would
+    // strip a custom header anyway, so the key has to travel in the query.
     expect(url).toBe(
-      `https://proxy.example?url=${encodeURIComponent("https://api.upcdatabase.org/product/883929264483")}`,
+      `https://proxy.example?url=${encodeURIComponent(
+        "https://api.upcdatabase.org/product/883929264483?apikey=test-key",
+      )}`,
     );
-    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer test-key");
+    expect((init.headers as Record<string, string>).Authorization).toBeUndefined();
   });
 });
 

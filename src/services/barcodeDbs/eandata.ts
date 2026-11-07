@@ -14,7 +14,6 @@ const API_BASE = "https://eandata.com/feed/";
 export const eandataProvider: BarcodeProvider = {
   id: "eandata",
   label: "EANdata",
-  note: "General EAN/UPC feed. Free accounts are capped at 15 lookups per day.",
   credentialFields: [
     { key: "apiKey", label: "API key", required: true, secret: true, placeholder: "keycode" },
   ],
@@ -25,7 +24,11 @@ export const eandataProvider: BarcodeProvider = {
       mode: "json",
       find: code.ean13,
     });
-    const response = await fetchJson({ url: `${API_BASE}?${params.toString()}`, signal });
+    const response = await fetchJson({
+      url: `${API_BASE}?${params.toString()}`,
+      signal,
+      apiId: "eandata",
+    });
     if (!response.ok) return response.error;
 
     const data = response.data;

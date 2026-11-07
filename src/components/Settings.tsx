@@ -1,50 +1,38 @@
 import { useState } from "react";
-import { ENV_TMDB_API_KEY, envCredentialsFor } from "../config/envKeys";
+import { ENV_TMDB_API_KEY } from "../config/envKeys";
 import { ALL_PROVIDERS } from "../services/barcodeDbs/registry";
 import { downloadCsv } from "../services/letterboxdCsv";
 import { TMDB_KEY_SETUP_HINT } from "../services/tmdb";
+import {
+  apiUsageStore,
+  averageLatencyMs,
+  clearApiUsage,
+  TMDB_API_ID,
+  type ApiUsageEntry,
+} from "../store/apiUsage";
 import {
   clearCollection,
   collectionStore,
   requestPersistentStorage,
 } from "../store/collection";
-import { hasUsableProvider, settingsActions, settingsStore } from "../store/settings";
-import { ProviderKeyList, readyProviderCount } from "./Onboarding";
+import { settingsActions, settingsStore } from "../store/settings";
+import { ProviderKeyList } from "./Onboarding";
 
 export function Settings() {
   const settings = settingsStore.use();
   const { entries } = collectionStore.use();
   const [confirmReset, setConfirmReset] = useState(false);
   const [storageNotice, setStorageNotice] = useState("");
-  /** Barcode keys only exist during development, so this is empty in a real build. */
-  const prefilledProviders = ALL_PROVIDERS.filter(
-    (provider) => envCredentialsFor(provider.id).apiKey,
-  ).map((provider) => provider.label);
 
   return (
     <div className="stack">
       <div className="card stack">
         <h2>Barcode databases</h2>
-        <p className="hint">
-          Tried in this order, stopping at the first hit. {readyProviderCount(settings)} ready.
-          {hasUsableProvider(settings) ? "" : " Enter at least one key to be able to scan."}
-        </p>
-        {prefilledProviders.length > 0 && (
-          <p className="hint">
-            Test keys from `.env.development.local`: {prefilledProviders.join(", ")}. These are for
-            local development only and never ship in a build.
-          </p>
-        )}
         <ProviderKeyList settings={settings} />
       </div>
 
       <div className="card stack">
         <h2>CORS proxy</h2>
-        <p className="hint">
-          UPC Database and UPCitemdb do not allow browser requests. If you run a small proxy, enter
-          its base URL here and each request becomes <span className="mono">?url=&lt;target&gt;</span>.
-          Leave it empty to skip those providers.
-        </p>
         <div className="field">
           <label htmlFor="proxy-url">Proxy base URL</label>
           <input
@@ -67,6 +55,8 @@ export function Settings() {
           <div className="banner error">{TMDB_KEY_SETUP_HINT}</div>
         )}
       </div>
+
+      <ApiUsageCard />
 
       <div className="card stack">
         <h2>Your data</h2>
@@ -150,6 +140,62 @@ export function Settings() {
           Reset settings and keys
         </button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Requests sent per API today.
+ *
+ * Three of the barcode databases and TMDB all meter the same lookup pipeline,
+ * so seeing the counts is the quickest way to tell where a scan's cost lands.
+ * Counts reset with the local day (see `src/store/apiUsage.ts`).
+ */
+function ApiUsageCard() {
+  const { usage } = apiUsageStore.use();
+  const rows = [
+    ...ALL_PROVIDERS.map((provider) => ({ id: provider.id, label: provider.label })),
+    { id: TMDB_API_ID, label: "TMDB" },
+  ];
+  const total = rows.reduce((sum, row) => sum + (usage[row.id]?.requests ?? 0), 0);
+
+  return (
+    <div className="card stack">
+      <h2>API requests</h2>
+      <p className="hint">
+        Requests sent today, counted on this device. {total} {total === 1 ? "request" : "requests"}{" "}
+        total.
+      </p>
+      <div className="stack">
+        {rows.map((row) => (
+          <UsageRow key={row.id} label={row.label} entry={usage[row.id]} />
+        ))}
+      </div>
+      <button
+        type="button"
+        className="btn small ghost"
+        disabled={total === 0}
+        onClick={() => clearApiUsage()}
+      >
+        Reset counters
+      </button>
+    </div>
+  );
+}
+
+function UsageRow({ label, entry }: { label: string; entry: ApiUsageEntry | undefined }) {
+  const requests = entry?.requests ?? 0;
+  const errors = entry?.errors ?? 0;
+  const average = averageLatencyMs(entry);
+
+  return (
+    <div className="row between">
+      <span>{label}</span>
+      <span className="hint">
+        {requests} {requests === 1 ? "request" : "requests"}
+        {errors > 0 ? ` · ${errors} failed` : ""}
+        {average !== null ? ` · ~${average} ms` : ""}
+      </span>
     </div>
   );
 }

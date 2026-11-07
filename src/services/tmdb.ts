@@ -1,3 +1,5 @@
+import { recordApiRequest, TMDB_API_ID } from "../store/apiUsage";
+
 /** Where to read a TMDB key from, so a missing key can be reported clearly. */
 export const TMDB_KEY_SETUP_HINT =
   "Set VITE_TMDB_API_KEY in .env.local (locally) or in your host's environment variables, then rebuild.";
@@ -42,16 +44,24 @@ export async function searchTmdb(
   });
 
   let response: Response;
+  const startedAt = Date.now();
   try {
     response = await fetch(`https://api.themoviedb.org/3/search/multi?${params.toString()}`, {
       signal: options.signal,
     });
   } catch (error) {
+    recordApiRequest(TMDB_API_ID, { ok: false, durationMs: Date.now() - startedAt });
     if (error instanceof DOMException && error.name === "AbortError") {
       return { ok: false, error: "TMDB search was cancelled." };
     }
     return { ok: false, error: "Could not reach TMDB. Check your connection." };
   }
+
+  // One request left the browser; charge it before interpreting the status.
+  recordApiRequest(TMDB_API_ID, {
+    ok: response.ok,
+    durationMs: Date.now() - startedAt,
+  });
 
   if (response.status === 401) {
     return { ok: false, error: "TMDB rejected the API key. Check VITE_TMDB_API_KEY." };

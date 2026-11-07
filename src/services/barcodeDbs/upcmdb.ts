@@ -23,7 +23,6 @@ function pickRecord(data: unknown): Record<string, unknown> | null {
 export const upcmdbProvider: BarcodeProvider = {
   id: "upcmdb",
   label: "UPCMDB",
-  note: "Movie database with IMDb IDs, formats and editions.",
   credentialFields: [
     { key: "apiKey", label: "API key", required: true, secret: true, placeholder: "x-api-key" },
   ],
@@ -33,6 +32,7 @@ export const upcmdbProvider: BarcodeProvider = {
       url,
       headers: { "x-api-key": credentials.apiKey?.trim() ?? "" },
       signal,
+      apiId: "upcmdb",
     });
     if (!response.ok) {
       // upcmdb answers 404 with a JSON body when it simply has no record.

@@ -1,26 +1,20 @@
-import { envCredentialsFor } from "../config/envKeys";
 import { ALL_PROVIDERS, orderedProviders } from "../services/barcodeDbs/registry";
-import { hasUsableProvider, settingsActions, settingsStore, usableProviders } from "../store/settings";
+import { hasUsableProvider, settingsActions, settingsStore } from "../store/settings";
 import type { ProviderSettings } from "../store/types";
 
 /**
  * First-run onboarding.
  *
- * AGENTS.md asks for a key prompt on first launch, so this screen is shown
- * whenever `onboarded` is false, even though the keyless UPCitemdb trial would
- * technically let a scan run straight away. The button stays disabled until at
- * least one provider is usable, so the user cannot get stuck with nothing.
- *
- * The dev-only build key set skips this screen (see `src/config/envKeys.ts`),
- * so in practice this is what a real user sees.
+ * AGENTS.md asks for a key prompt on first launch. Build-time keys act as
+ * presets (see `src/config/envKeys.ts`): when `.env` supplies at least one
+ * barcode key the store marks the session onboarded and this screen never
+ * appears, so a configured deployment goes straight to scanning. With no keys
+ * the user is asked for one, and the button stays disabled until a provider is
+ * usable so they cannot get stuck with nothing.
  */
 export function Onboarding({ firstRun }: { firstRun: boolean }) {
   const settings = settingsStore.use();
   const ready = hasUsableProvider(settings);
-  /** Dev-only test keys prefill the form; in a real build this is always 0. */
-  const prefilledCount = ALL_PROVIDERS.filter(
-    (provider) => envCredentialsFor(provider.id).apiKey,
-  ).length;
 
   return (
     <div className="stack">
@@ -30,10 +24,6 @@ export function Onboarding({ firstRun }: { firstRun: boolean }) {
             ? "Enter an API key for at least one barcode database"
             : "Add at least one barcode database key"}
         </h2>
-        <p className="hint">
-          One key is enough to start. The app tries the databases in the order below and stops at
-          the first hit, so ordering them by hit rate saves your quota.
-        </p>
         <ProviderKeyList settings={settings} />
         <button
           type="button"
@@ -43,16 +33,6 @@ export function Onboarding({ firstRun }: { firstRun: boolean }) {
         >
           {ready ? "Start scanning" : "Enter a key to continue"}
         </button>
-        <p className="hint">
-          {prefilledCount > 0
-            ? `${prefilledCount} of these keys are development test keys and can be replaced with your own. `
-            : ""}
-          Keys you enter are stored only on this device, in this browser, and are sent nowhere
-          except to the API that issued them.{" "}
-          {ready
-            ? "UPCitemdb needs no key, so scans already work — adding a key just makes lookups more reliable."
-            : ""}
-        </p>
       </div>
     </div>
   );
@@ -70,9 +50,7 @@ export function ProviderKeyList({ settings }: { settings: ProviderSettings }) {
               <div className="grow">
                 <div className="row" style={{ gap: 8 }}>
                   <strong style={{ fontSize: "0.9rem" }}>{provider.label}</strong>
-                  {provider.requiresProxy && <span className="pill warn">needs proxy</span>}
                 </div>
-                {provider.note && <p className="hint">{provider.note}</p>}
               </div>
               <button
                 type="button"
@@ -102,7 +80,6 @@ export function ProviderKeyList({ settings }: { settings: ProviderSettings }) {
                       settingsActions.setCredential(provider.id, field.key, event.target.value)
                     }
                   />
-                  {field.helpText && <p className="hint">{field.helpText}</p>}
                 </div>
               ))}
             {enabled && (
@@ -134,9 +111,4 @@ export function ProviderKeyList({ settings }: { settings: ProviderSettings }) {
       })}
     </div>
   );
-}
-
-/** Used by Settings to summarise readiness. */
-export function readyProviderCount(settings: ProviderSettings): number {
-  return usableProviders(settings).length;
 }

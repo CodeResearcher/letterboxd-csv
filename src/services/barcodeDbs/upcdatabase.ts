@@ -4,8 +4,14 @@ import type { BarcodeProvider, ProviderLookupResult } from "./types";
 /**
  * UPC Database (upcdatabase.org) - general product database.
  *
- * API: GET https://api.upcdatabase.org/product/{code}
- *      Authorization: Bearer <token>   (or ?apikey=)
+ * API: GET https://api.upcdatabase.org/product/{code}?apikey=<token>
+ * The token must go in the query string, not an Authorization header: the API
+ * answers 200 with "Your API Key is invalid" for `Authorization: Bearer <key>`
+ * even when the key is valid (verified live against a known-good key).
+ *
+ * Using the query string also means a plain pass-through CORS proxy works,
+ * because proxies commonly strip custom request headers.
+ *
  * The API does not send CORS headers, so browser calls fail without a proxy.
  * It also answers HTTP 200 for auth and not-found errors, so the body is the
  * only source of truth.
@@ -15,18 +21,19 @@ const API_BASE = "https://api.upcdatabase.org/product";
 export const upcdatabaseProvider: BarcodeProvider = {
   id: "upcdatabase",
   label: "UPC Database",
-  note: "General product catalog. Needs a CORS proxy for browser use.",
   requiresProxy: true,
   credentialFields: [
-    { key: "apiKey", label: "API key", required: true, secret: true, placeholder: "Bearer token" },
+    { key: "apiKey", label: "API key", required: true, secret: true, placeholder: "API key" },
   ],
   async lookup({ code, credentials, signal, proxyBaseUrl }): Promise<ProviderLookupResult> {
-    const url = `${API_BASE}/${encodeURIComponent(code.upca ?? code.ean13)}`;
+    const apiKey = credentials.apiKey?.trim() ?? "";
+    const target = `${API_BASE}/${encodeURIComponent(code.upca ?? code.ean13)}`;
+    const url = `${target}?apikey=${encodeURIComponent(apiKey)}`;
     const response = await fetchJson({
       url,
-      headers: { Authorization: `Bearer ${credentials.apiKey?.trim() ?? ""}` },
       signal,
       proxyBaseUrl,
+      apiId: "upcdatabase",
     });
     if (!response.ok) {
       if (!proxyBaseUrl && response.error.kind === "cors") return response.error;

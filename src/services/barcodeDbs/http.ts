@@ -1,3 +1,4 @@
+import { recordApiRequest } from "../../store/apiUsage";
 import type { LookupFailureKind, ProviderLookupResult } from "./types";
 
 /**
@@ -37,6 +38,11 @@ export interface RequestOptions {
   /** When set, the request goes through the proxy instead of hitting the API directly. */
   proxyBaseUrl?: string;
   method?: "GET";
+  /**
+   * Provider id to charge this request to in the usage counters. Omitted calls
+   * are not counted, which keeps this layer usable for one-off requests.
+   */
+  apiId?: string;
 }
 
 /**
@@ -86,7 +92,20 @@ export async function fetchJson(
 ): Promise<{ ok: true; data: unknown; status: number } | { ok: false; error: Extract<ProviderLookupResult, { status: "error" }> }> {
   const target = options.proxyBaseUrl ? viaProxy(options.proxyBaseUrl, options.url) : options.url;
   let response: Response;
+  let startedAt = 0;
+  /**
+   * Count the request exactly once per attempt, with the time it took and
+   * whether it succeeded. Auth and not-found answers are still billed by the
+   * APIs, so only transport failures and error statuses count as errors.
+   */
+  let recorded = false;
+  const charge = (ok: boolean) => {
+    if (!options.apiId || recorded) return;
+    recorded = true;
+    recordApiRequest(options.apiId, { ok, durationMs: Date.now() - startedAt });
+  };
   try {
+    startedAt = Date.now();
     response = await fetch(target, {
       method: options.method ?? "GET",
       headers: { Accept: "application/json", ...options.headers },
@@ -96,6 +115,7 @@ export async function fetchJson(
     });
   } catch (error) {
     const httpError = classifyNetworkError(error);
+    charge(false);
     return { ok: false, error: { status: "error", kind: httpError.kind, message: httpError.message } };
   }
 
@@ -108,12 +128,14 @@ export async function fetchJson(
   }
 
   if (response.status === 401 || response.status === 403) {
+    charge(false);
     return {
       ok: false,
       error: { status: "error", kind: "auth", message: `HTTP ${response.status}` },
     };
   }
   if (response.status === 429) {
+    charge(false);
     return {
       ok: false,
       error: { status: "error", kind: "rate_limit", message: `HTTP ${response.status}` },
@@ -121,6 +143,7 @@ export async function fetchJson(
   }
   if (!response.ok) {
     // 5xx and other transport-level failures.
+    charge(false);
     return {
       ok: false,
       error: {
@@ -131,6 +154,7 @@ export async function fetchJson(
     };
   }
   if (data === null) {
+    charge(false);
     return {
       ok: false,
       error: {
@@ -140,6 +164,7 @@ export async function fetchJson(
       },
     };
   }
+  charge(true);
   return { ok: true, data, status: response.status };
 }
 

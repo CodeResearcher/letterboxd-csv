@@ -10,3 +10,5 @@ coverage
 *.log
 .vite
 tsconfig.tsbuildinfo
+.wrangler
+worker/.wrangler

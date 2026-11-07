@@ -1,4 +1,4 @@
-import { HAS_ENV_CREDENTIALS, envCredentialsFor } from "../config/envKeys";
+import { HAS_ENV_CREDENTIALS, ENV_CORS_PROXY_URL, envCredentialsFor } from "../config/envKeys";
 import { ALL_PROVIDERS, DEFAULT_PROVIDER_ORDER, orderedProviders } from "../services/barcodeDbs/registry";
 import { isProviderConfigured } from "../services/barcodeDbs/types";
 import { createStore } from "./createStore";
@@ -7,7 +7,7 @@ import type { ProviderSettings } from "./types";
 const STORAGE_KEY = "lbd-disc-settings-v1";
 
 /**
- * Development-only test keys from `.env.development.local` (see
+ * Development-only test keys from `.env.local` (see
  * `src/config/envKeys.ts`). They prefill the form so a contributor can scan
  * without signing up. In a production build this map is empty, and anything the
  * user typed in Settings takes precedence, including a deliberate "no key".
@@ -36,9 +36,13 @@ function defaultSettings(): ProviderSettings {
     order: [...DEFAULT_PROVIDER_ORDER],
     enabled: Object.fromEntries(ALL_PROVIDERS.map((provider) => [provider.id, true])),
     credentials: envCredentialDefaults(),
-    // Dev builds with test keys have nothing to set up on first launch.
+    // Keys from `.env` act as presets, so a build that supplies at least one is
+    // already usable and should go straight to scanning. With none, onboarding
+    // waits for the user to enter a key (see `src/config/envKeys.ts`).
     onboarded: HAS_ENV_CREDENTIALS,
-    proxyBaseUrl: "",
+    // The shipped proxy, so the two CORS-restricted databases work with no
+    // setup. A saved value overrides it, including a deliberate empty string.
+    proxyBaseUrl: ENV_CORS_PROXY_URL,
   };
 }
 
@@ -59,7 +63,8 @@ function loadSettings(): ProviderSettings {
       enabled: { ...defaults.enabled, ...(saved.enabled ?? {}) },
       credentials: mergeCredentials(saved.credentials ?? {}),
       onboarded: typeof saved.onboarded === "boolean" ? saved.onboarded : defaults.onboarded,
-      proxyBaseUrl: typeof saved.proxyBaseUrl === "string" ? saved.proxyBaseUrl : "",
+      proxyBaseUrl:
+        typeof saved.proxyBaseUrl === "string" ? saved.proxyBaseUrl : defaults.proxyBaseUrl,
     };
   } catch {
     return defaults;

@@ -10,6 +10,7 @@ const KEYS = [
   "VITE_UPCDATABASE_API_KEY",
   "VITE_EANDATA_API_KEY",
   "VITE_UPCITEMDB_API_KEY",
+  "VITE_CORS_PROXY_URL",
 ];
 
 for (const key of KEYS) {

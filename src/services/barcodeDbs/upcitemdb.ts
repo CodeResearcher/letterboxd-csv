@@ -18,7 +18,6 @@ const PAID_BASE = "https://api.upcitemdb.com/prod/v1/lookup";
 export const upcitemdbProvider: BarcodeProvider = {
   id: "upcitemdb",
   label: "UPCitemdb",
-  note: "Works without a key (100 lookups/day). General product catalog with a CORS proxy requirement.",
   requiresProxy: true,
   credentialFields: [
     {
@@ -27,7 +26,6 @@ export const upcitemdbProvider: BarcodeProvider = {
       required: false,
       secret: true,
       placeholder: "Paid plan key",
-      helpText: "Leave empty to use the free trial endpoint, which is capped per day.",
     },
   ],
   async lookup({ code, credentials, signal, proxyBaseUrl }): Promise<ProviderLookupResult> {
@@ -39,6 +37,7 @@ export const upcitemdbProvider: BarcodeProvider = {
       headers: apiKey ? { user_key: apiKey, key_type: "3scale" } : undefined,
       signal,
       proxyBaseUrl,
+      apiId: "upcitemdb",
     });
     if (!response.ok) return response.error;
 

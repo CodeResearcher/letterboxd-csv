@@ -31,36 +31,83 @@ The CSV contains a single column, `tmdbID`, which is all Letterboxd needs to ide
 ### CORS proxy
 
 UPCMDB and EANdata allow cross-origin requests, so they work in a plain static deployment. UPC
-Database and UPCitemdb do not. To use them, run any small proxy that accepts
-`?url=<encoded target>` and returns the target's body with permissive CORS headers, then paste its
-base URL into **Settings → CORS proxy**. Providers without a proxy simply report that they were
+Database and UPCitemdb do not. This repository includes a Cloudflare Worker (`worker/`) that
+proxies exactly those two APIs, and the app ships with its URL as the **built-in default**, so both
+databases work with no setup.
+
+The default lives in `src/config/envKeys.ts` and can be overridden with `VITE_CORS_PROXY_URL`. It is
+a deliberately *specific* proxy rather than a public one, because the well-known free proxies are not
+dependable — during testing `corsproxy.io` began requiring a paid key, `api.allorigins.win` returned
+408/500/522 and strips custom request headers, and `cors.eu.org` / `api.cors.lol` both returned 429 —
+and because routing a key through a stranger's server means whoever runs it can read that key.
+
+Users can still replace or clear the proxy in **Settings → CORS proxy**. A saved value always wins,
+including a deliberately empty one, so clearing the field is respected on the next launch and the
+two databases are simply skipped.
+
+#### Deploy your own Worker
+
+The Worker lives in [`worker/`](worker/) and is a real, deployable project, not a snippet. The
+Cloudflare free tier allows 100,000 requests per day, far more than personal disc scanning needs.
+
+```bash
+npx wrangler login                       # once, in a browser
+npm run worker:dev                       # run it locally on http://localhost:8787
+npm run worker:deploy                    # publish to workers.dev
+```
+
+`npm run worker:deploy` prints the deployed URL, for example
+`https://letterboxd-csv-proxy.your-name.workers.dev/`. Point the app at it by setting
+`VITE_CORS_PROXY_URL` to that URL (see below) and rebuilding, or paste it into
+**Settings → CORS proxy** for a one-off.
+
+The Worker is deliberately strict, so it is safe to leave running public:
+
+- **Host allowlist.** It only reaches `api.upcdatabase.org` and `api.upcitemdb.com`. Everything
+  else, including internal addresses and `file://`, is rejected with a 400. Without this, a public
+  proxy is an SSRF vector.
+- **No request headers are forwarded.** The credential always travels in the target's query string,
+  which is how UPC Database is called (`?apikey=`) and why it works through a pass-through proxy.
+- **No bindings or secrets.** `worker/wrangler.toml` holds no state, so there is nothing to leak.
+
+Any proxy that accepts `?url=<encoded target>` and returns permissive CORS headers works too. Enter
+its base URL in **Settings → CORS proxy**. Providers without a proxy simply report that they were
 skipped, and the chain falls through to the next one.
 
 ## Configuration
 
 Keys fall into two tiers, and they live in different files for a reason:
 
-| Variable | File | Scope | Ships in build? |
-| --- | --- | --- | --- |
-| `VITE_TMDB_API_KEY` | `.env.local` | Everyone using the app | yes |
-| `VITE_UPCMDB_API_KEY` | `.env.development.local` | Local testing | no |
-| `VITE_UPCDATABASE_API_KEY` | `.env.development.local` | Local testing | no |
-| `VITE_EANDATA_API_KEY` | `.env.development.local` | Local testing | no |
-| `VITE_UPCITEMDB_API_KEY` | `.env.development.local` | Local testing | no |
+| Variable | Required | Ships in build? |
+| --- | --- | --- |
+| `VITE_TMDB_API_KEY` | yes | yes |
+| `VITE_CORS_PROXY_URL` | no | yes (a URL, not a secret) |
+| `VITE_UPCMDB_API_KEY` | no | no |
+| `VITE_UPCDATABASE_API_KEY` | no | no |
+| `VITE_EANDATA_API_KEY` | no | no |
+| `VITE_UPCITEMDB_API_KEY` | no | no |
+
+All of them live in a single gitignored `.env.local`. Only `VITE_TMDB_API_KEY` is mandatory:
 
 ```bash
 cp .env.example .env.local     # then set VITE_TMDB_API_KEY
-# optionally, for scanning without signing up:
-cp .env.example .env.development.local   # then set the barcode keys
 ```
 
 **TMDB** is needed by every visitor, so its key is compiled into the client bundle and is public in
 any deployment. Do not put anything there you are not willing to make public.
 
-**Barcode-database keys are for testing only.** They are paid or rate-limited quotas, so they are
-kept out of builds two ways: they live in `.env.development.local`, which `vite build` never reads,
-and the code that reads them is gated on `import.meta.env.DEV`, which Vite replaces with `false`
-and dead-code eliminates in production. After a build you can confirm none leaked:
+**`VITE_CORS_PROXY_URL`** is public in the same way: it is a URL, readable by anyone, and meant to
+be. The Worker behind it carries no credential and only forwards to the allowlisted barcode
+databases, so sharing the URL does not expose anything sensitive. When unset, the app falls back to
+the built-in default in `src/config/envKeys.ts`. A value saved in Settings overrides it, and
+clearing it in Settings is respected on the next launch.
+
+**Barcode keys are optional and act as presets.** If at least one is set the app treats itself as
+already configured and skips first-run onboarding; with none, the user is asked for a key. They are
+paid or rate-limited quotas, so they are kept out of production builds by a single mechanism: the
+code that reads them is gated on `import.meta.env.DEV`, which Vite replaces with `false` and
+dead-code eliminates — so even though `.env.local` *is* loaded during a production build, the keys
+never reach the bundle. After a build you can confirm none leaked:
 
 ```bash
 npm run build
@@ -71,18 +118,27 @@ Users are expected to enter their own barcode keys on first launch; those are st
 localStorage on their device and never leave it except to reach the issuing API. For deployment,
 set `VITE_TMDB_API_KEY` in your host's environment before building.
 
-Both `.env.local` and `.env.development.local` are gitignored; `.env.example` holds the names with
-blank values and is safe to commit.
+Both `.env.local` and `.env.example` exist; only `.env.local` holds values and is gitignored, while
+`.env.example` holds the names with blank values and is safe to commit.
 
 ## Development
 
 ```bash
 npm install
 npm run dev         # http://localhost:5173 (localhost counts as a secure context for the camera)
-npm test            # Vitest
+npm test            # app + Worker suites
 npm run build       # check:keys + tsc + vite build
 npm run check:keys  # verify no barcode key can reach a build
 npm run preview     # serve the production build
+```
+
+The Worker has its own commands, tests, and tsconfig, and is never part of the app bundle:
+
+```bash
+npm run worker:dev        # local Worker on http://localhost:8787
+npm run worker:deploy     # deploy to Cloudflare
+npm run worker:test       # Worker test suite
+npm run worker:typecheck  # typecheck Worker separately
 ```
 
 `vite --host` serves over plain HTTP on your LAN, which browsers refuse to grant camera access to.

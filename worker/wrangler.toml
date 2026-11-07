@@ -1,0 +1,10 @@
+name = "letterboxd-csv-proxy"
+main = "src/index.ts"
+compatibility_date = "2026-01-01"
+
+# The Worker is deliberately stateless and holds no bindings or secrets. The
+# host allowlist in `src/index.ts` is the entire security model, so there is
+# nothing here to leak and nothing to configure in the Cloudflare dashboard.
+#
+# `npm run worker:deploy` publishes this to
+# https://letterboxd-csv-proxy.<your-subdomain>.workers.dev/

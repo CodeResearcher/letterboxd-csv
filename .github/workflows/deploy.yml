@@ -40,9 +40,14 @@ jobs:
       # Only TMDB belongs in a published bundle. A repo secret keeps it out of
       # the repository; if it is unset the app still builds and tells the user
       # to configure a key, rather than failing the deploy.
+      #
+      # `VITE_CORS_PROXY_URL` is a repo *variable* (Settings → Secrets and
+      # variables → Actions → Variables), not a secret: it is a public URL and
+      # ships in the bundle by design. Unset means the app ships with no proxy.
       - name: Build
         env:
           VITE_TMDB_API_KEY: ${{ secrets.VITE_TMDB_API_KEY }}
+          VITE_CORS_PROXY_URL: ${{ vars.VITE_CORS_PROXY_URL }}
           # Derived from the repo name so a fork or rename keeps working.
           PAGES_BASE: /${{ github.event.repository.name }}/
         run: npm run build
