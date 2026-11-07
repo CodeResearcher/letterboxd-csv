@@ -72,10 +72,11 @@ export async function resolveTitle(options: ResolveOptions): Promise<ResolveResu
     };
   }
 
+  const proxyConfigured = Boolean(settings.proxyBaseUrl?.trim());
   const details = outcome.failures.map((failure) =>
     failure.kind === "not_found"
       ? `${failure.label}: no record for this barcode.`
-      : describeFailure(failure.kind as LookupFailureKind, failure.label),
+      : describeFailure(failure.kind as LookupFailureKind, failure.label, { proxyConfigured }),
   );
   return {
     status: "no_title",

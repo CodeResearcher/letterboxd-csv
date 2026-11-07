@@ -18,9 +18,12 @@ const credentials = { apiKey: "test-key" };
 const suites: Array<{
   provider: BarcodeProvider;
   payloads: { found: unknown; not_found?: unknown; auth?: unknown };
+  /** Transport failures on a proxied API mean CORS; direct APIs mean network. */
+  transportKind: "cors" | "network";
 }> = [
   {
     provider: upcmdbProvider,
+    transportKind: "network",
     payloads: {
       found: {
         title: "The Matrix",
@@ -34,6 +37,7 @@ const suites: Array<{
   },
   {
     provider: upcdatabaseProvider,
+    transportKind: "cors",
     payloads: {
       found: { success: true, title: "The Matrix (Blu-ray)", barcode: "883929264483" },
       not_found: {
@@ -48,6 +52,7 @@ const suites: Array<{
   },
   {
     provider: eandataProvider,
+    transportKind: "network",
     payloads: {
       found: {
         status: { version: "3.4", code: "200", message: "free 0/15" },
@@ -64,6 +69,7 @@ const suites: Array<{
   },
   {
     provider: upcitemdbProvider,
+    transportKind: "cors",
     payloads: {
       found: {
         code: "OK",
@@ -76,10 +82,10 @@ const suites: Array<{
   },
 ];
 
-for (const { provider, payloads } of suites) {
+for (const { provider, payloads, transportKind } of suites) {
   runProviderContract(
     provider,
-    { code: CODE, credentials },
+    { code: CODE, credentials, transportKind },
     (fixture) => {
       if (fixture === "found") return jsonResponse(payloads.found);
       if (fixture === "auth") return jsonResponse(payloads.auth ?? { error: "Forbidden" }, 403);

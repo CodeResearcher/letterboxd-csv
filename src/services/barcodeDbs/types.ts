@@ -43,11 +43,6 @@ export interface BarcodeProvider {
   /** Shown in Settings and in "found via" labels. */
   label: string;
   credentialFields: CredentialField[];
-  /**
-   * True when the provider's API does not send CORS headers, so browser calls
-   * fail unless a proxy is configured. Only affects the guidance we show.
-   */
-  requiresProxy?: boolean;
   supports?(code: NormalizedBarcode): boolean;
   lookup(ctx: LookupContext): Promise<ProviderLookupResult>;
 }
@@ -61,17 +56,36 @@ export function isProviderConfigured(
   return required.every((field) => Boolean(credentials[field.key]?.trim()));
 }
 
+/**
+ * What the message helper needs to know beyond the failure kind. The `cors`
+ * kind is only ever produced for providers flagged `requiresProxy` (see
+ * `src/services/barcodeDbs/http.ts`), so when it appears the proxy state decides
+ * whether the advice is still "configure a proxy" or "the proxy is the problem".
+ */
+export interface FailureContext {
+  /** A proxy base URL is configured in Settings. */
+  proxyConfigured?: boolean;
+}
+
 /** Human-readable explanation for a failure, used in the UI. */
-export function describeFailure(kind: LookupFailureKind, providerLabel: string): string {
+export function describeFailure(
+  kind: LookupFailureKind,
+  providerLabel: string,
+  context: FailureContext = {},
+): string {
   switch (kind) {
     case "auth":
       return `${providerLabel} rejected the API key. Check it in Settings.`;
     case "rate_limit":
       return `${providerLabel} is rate limited right now.`;
     case "network":
-      return `Could not reach ${providerLabel}. Check your connection.`;
+      return `Could not reach ${providerLabel}. Check your connection or try again.`;
     case "cors":
-      return `${providerLabel} blocks requests from browsers. Add a CORS proxy in Settings.`;
+      // Reached only for providers whose API sends no CORS headers, so the
+      // advice must not repeat itself once a proxy is already configured.
+      return context.proxyConfigured
+        ? `Could not reach ${providerLabel} through the CORS proxy. Check the proxy URL in Settings.`
+        : `${providerLabel} blocks requests from browsers. Add a CORS proxy in Settings.`;
     default:
       return `${providerLabel} returned an unexpected response.`;
   }

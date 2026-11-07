@@ -16,6 +16,12 @@ export interface ContractFixtures {
   code: string;
   /** Credentials to hand the provider. */
   credentials?: Record<string, string>;
+  /**
+   * Kind a thrown transport error must map to. A provider whose API sends no
+   * CORS headers is reported as `cors`; every other provider must not claim a
+   * CORS block for what could be a plain connection drop.
+   */
+  transportKind: "cors" | "network";
 }
 
 export function parseFixture(code: string): NormalizedBarcode {
@@ -81,7 +87,7 @@ export function runProviderContract(
       expect(result.status).not.toBe("found");
     });
 
-    it("never throws: transport failures become error results", async () => {
+    it("never throws: transport failures become typed error results", async () => {
       globalThis.fetch = vi.fn(async () => {
         throw new TypeError("Failed to fetch");
       }) as unknown as typeof fetch;
@@ -92,7 +98,9 @@ export function runProviderContract(
       });
       expect(result.status).toBe("error");
       if (result.status !== "error") return;
-      expect(result.kind).toBe("cors");
+      // Only a no-CORS API can be blocked by a browser; anything else is a
+      // transient network failure and must not point at the proxy setting.
+      expect(result.kind).toBe(fixtures.transportKind);
     });
   });
 }

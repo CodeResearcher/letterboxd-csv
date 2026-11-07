@@ -27,6 +27,7 @@ export const eandataProvider: BarcodeProvider = {
     const response = await fetchJson({
       url: `${API_BASE}?${params.toString()}`,
       signal,
+      requiresProxy: false,
       apiId: "eandata",
     });
     if (!response.ok) return response.error;

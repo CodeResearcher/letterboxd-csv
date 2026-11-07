@@ -32,6 +32,7 @@ export const upcmdbProvider: BarcodeProvider = {
       url,
       headers: { "x-api-key": credentials.apiKey?.trim() ?? "" },
       signal,
+      requiresProxy: false,
       apiId: "upcmdb",
     });
     if (!response.ok) {

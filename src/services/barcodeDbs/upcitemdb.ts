@@ -18,7 +18,6 @@ const PAID_BASE = "https://api.upcitemdb.com/prod/v1/lookup";
 export const upcitemdbProvider: BarcodeProvider = {
   id: "upcitemdb",
   label: "UPCitemdb",
-  requiresProxy: true,
   credentialFields: [
     {
       key: "apiKey",
@@ -37,6 +36,7 @@ export const upcitemdbProvider: BarcodeProvider = {
       headers: apiKey ? { user_key: apiKey, key_type: "3scale" } : undefined,
       signal,
       proxyBaseUrl,
+      requiresProxy: true,
       apiId: "upcitemdb",
     });
     if (!response.ok) return response.error;

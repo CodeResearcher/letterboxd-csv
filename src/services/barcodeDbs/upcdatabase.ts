@@ -21,7 +21,6 @@ const API_BASE = "https://api.upcdatabase.org/product";
 export const upcdatabaseProvider: BarcodeProvider = {
   id: "upcdatabase",
   label: "UPC Database",
-  requiresProxy: true,
   credentialFields: [
     { key: "apiKey", label: "API key", required: true, secret: true, placeholder: "API key" },
   ],
@@ -33,12 +32,10 @@ export const upcdatabaseProvider: BarcodeProvider = {
       url,
       signal,
       proxyBaseUrl,
+      requiresProxy: true,
       apiId: "upcdatabase",
     });
-    if (!response.ok) {
-      if (!proxyBaseUrl && response.error.kind === "cors") return response.error;
-      return response.error;
-    }
+    if (!response.ok) return response.error;
 
     const data = response.data;
     if (typeof data !== "object" || data === null) {

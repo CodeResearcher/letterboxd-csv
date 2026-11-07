@@ -15,17 +15,33 @@ export class ProviderHttpError extends Error {
   }
 }
 
-/** A network-level failure almost always means the API refused a browser origin. */
-function classifyNetworkError(error: unknown): ProviderHttpError {
+/**
+ * Classify a thrown `fetch` error.
+ *
+ * A browser reports a CORS rejection and a plain connection drop as the same
+ * opaque `TypeError`, so the error itself cannot tell them apart. The provider's
+ * own declaration can: only an API that sends no CORS headers *can* be blocked
+ * by the browser, so an unflagged provider's failure is reported as a transient
+ * network problem instead of sending the user to a proxy setting that is not the
+ * fix. `requiresProxy` is set precisely on those two providers.
+ */
+function classifyNetworkError(error: unknown, providerRequiresProxy: boolean): ProviderHttpError {
   if (error instanceof ProviderHttpError) return error;
   if (error instanceof DOMException && error.name === "AbortError") {
     return new ProviderHttpError("network", "Request timed out.");
   }
-  // Browsers report CORS rejection as an opaque TypeError.
+  // Browsers report a CORS rejection as an opaque TypeError, indistinguishable
+  // from many transient network failures.
   if (error instanceof TypeError) {
+    if (providerRequiresProxy) {
+      return new ProviderHttpError(
+        "cors",
+        "Network request failed. The provider probably blocks browsers (CORS) or the connection dropped.",
+      );
+    }
     return new ProviderHttpError(
-      "cors",
-      "Network request failed. The provider probably blocks browsers (CORS) or the connection dropped.",
+      "network",
+      "Network request failed. The connection dropped or the provider was unreachable.",
     );
   }
   return new ProviderHttpError("unknown", error instanceof Error ? error.message : String(error));
@@ -37,6 +53,13 @@ export interface RequestOptions {
   signal: AbortSignal;
   /** When set, the request goes through the proxy instead of hitting the API directly. */
   proxyBaseUrl?: string;
+  /**
+   * True when the provider's API sends no CORS headers, so a browser failure
+   * can only be a CORS block. Set by the providers that need the proxy
+   * (`upcdatabase`, `upcitemdb`); transport failures elsewhere are reported as
+   * plain network problems.
+   */
+  requiresProxy?: boolean;
   method?: "GET";
   /**
    * Provider id to charge this request to in the usage counters. Omitted calls
@@ -114,7 +137,7 @@ export async function fetchJson(
       credentials: "omit",
     });
   } catch (error) {
-    const httpError = classifyNetworkError(error);
+    const httpError = classifyNetworkError(error, options.requiresProxy === true);
     charge(false);
     return { ok: false, error: { status: "error", kind: httpError.kind, message: httpError.message } };
   }
@@ -155,12 +178,17 @@ export async function fetchJson(
   }
   if (data === null) {
     charge(false);
+    // A JSON API that answers 2xx with HTML is nearly always a browser block,
+    // but only for providers that send no CORS headers.
+    const blocked = options.requiresProxy === true;
     return {
       ok: false,
       error: {
         status: "error",
-        kind: "cors",
-        message: "The API returned HTML instead of JSON. It is probably blocking browsers.",
+        kind: blocked ? "cors" : "network",
+        message: blocked
+          ? "The API returned HTML instead of JSON. It is probably blocking browsers."
+          : "The API returned a non-JSON response.",
       },
     };
   }
