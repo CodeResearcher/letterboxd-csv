@@ -151,7 +151,7 @@ http://localhost:5173`) or deploy a preview build.
 key-policy guard, the tests, and a final scan of `dist/` before uploading, so a stray barcode key
 fails the deploy instead of being published.
 
-Two things to set up once in the repository:
+Three things to set up once in the repository:
 
 1. **Settings → Pages → Build and deployment → Source: GitHub Actions.** Already enabled for this
    repository. The workflow passes `enablement: true` as well, but the `GITHUB_TOKEN` cannot
@@ -161,6 +161,20 @@ Two things to set up once in the repository:
 2. **Settings → Secrets and variables → Actions → New repository secret**, named
    `VITE_TMDB_API_KEY`. Without it the deploy still succeeds, but the app shows its "set a TMDB
    key" banner to every visitor.
+3. Optionally the same screen's **Variables** tab, named `VITE_CORS_PROXY_URL`, if you deployed your
+   own Worker. Unset is fine: the app falls back to its built-in default.
+
+> **Scope matters.** These must be **repository-level**, not environment-level. GitHub only exposes
+> environment secrets to jobs that declare that environment, and the `build` job deliberately does
+> not: it runs before the `deploy` job that names `github-pages`. A key stored under the
+> `github-pages` environment therefore resolves to an empty string during the build, the bundle
+> ships without it, and nothing in the logs says why. The build job reads only repo-level
+> `secrets.*` and `vars.*`.
+
+Barcode keys are intentionally not part of this. They are gated on `import.meta.env.DEV`, so a
+production build ignores them, and the workflow's final `dist/` scan fails the deploy if one ever
+appears. Visitors enter their own barcode keys in Settings; those stay in their browser's
+localStorage.
 
 The site is served from a subpath, `https://coderesearcher.github.io/letterboxd-csv/`,
 so absolute paths like `/icons/...` would 404. `vite.config.ts` derives every path from one value,
