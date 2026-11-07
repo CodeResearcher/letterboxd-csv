@@ -95,13 +95,61 @@ describe("averageLatencyMs", () => {
     const { averageLatencyMs } = await loadModule();
 
     expect(averageLatencyMs(undefined)).toBeNull();
-    expect(averageLatencyMs({ day: "2026-11-07", requests: 3, errors: 0, totalMs: 0 })).toBeNull();
+    expect(
+      averageLatencyMs({ day: "2026-11-07", requests: 3, errors: 0, memoHits: 0, totalMs: 0 }),
+    ).toBeNull();
   });
 
   it("rounds to whole milliseconds", async () => {
     const { averageLatencyMs } = await loadModule();
 
-    expect(averageLatencyMs({ day: "2026-11-07", requests: 3, errors: 0, totalMs: 100 })).toBe(33);
+    expect(
+      averageLatencyMs({ day: "2026-11-07", requests: 3, errors: 0, memoHits: 0, totalMs: 100 }),
+    ).toBe(33);
+  });
+});
+
+describe("recordMemoHit", () => {
+  it("counts a cache hit without counting a request", async () => {
+    const { apiUsageStore, recordMemoHit } = await loadModule();
+
+    recordMemoHit("upcmdb");
+    recordMemoHit("upcmdb");
+
+    expect(apiUsageStore.get().usage.upcmdb).toMatchObject({
+      requests: 0,
+      memoHits: 2,
+      totalMs: 0,
+    });
+  });
+
+  it("keeps cache hits separate from real requests for the same API", async () => {
+    const { apiUsageStore, recordApiRequest, recordMemoHit } = await loadModule();
+
+    recordApiRequest("eandata", { ok: true, durationMs: 40 });
+    recordMemoHit("eandata");
+
+    expect(apiUsageStore.get().usage.eandata).toMatchObject({ requests: 1, memoHits: 1 });
+  });
+
+  it("backfills a missing memoHits field on counters from an older build", async () => {
+    const data = stubIdb();
+    const today = new Date();
+    const key = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(
+      today.getDate(),
+    ).padStart(2, "0")}`;
+    // No `memoHits` key: this is the shape the first release wrote.
+    data.set("lbd-disc-api-usage-v1", {
+      upcmdb: { day: key, requests: 4, errors: 1, totalMs: 400 },
+    });
+
+    const { apiUsageStore, loadApiUsage } = await loadModule();
+    await loadApiUsage();
+
+    expect(apiUsageStore.get().usage.upcmdb).toMatchObject({
+      requests: 4,
+      memoHits: 0,
+    });
   });
 });
 

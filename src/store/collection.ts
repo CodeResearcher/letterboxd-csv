@@ -1,5 +1,6 @@
 import { get, set, update } from "idb-keyval";
 import { createStore } from "./createStore";
+import { normalizeBarcode } from "../services/normalizeBarcode";
 import type { CollectionEntry, LookupMemo, UnresolvedEntry } from "./types";
 
 /**
@@ -118,15 +119,18 @@ export function updateEntry(entryId: string, patch: Partial<Omit<CollectionEntry
 
 export function removeEntry(entryId: string): void {
   const state = collectionStore.get();
+  const removed = state.entries.find((entry) => entry.id === entryId);
   const entries = state.entries.filter((entry) => entry.id !== entryId);
   collectionStore.set({ ...state, entries });
   void persistEntries(entries);
+  if (removed) void forgetBarcodeMemo(removed.barcode);
 }
 
 export function clearCollection(): void {
   collectionStore.set({ entries: [], unresolved: [], loaded: true });
   void persistEntries([]);
   void persistUnresolved([]);
+  void clearMemos();
 }
 
 export function addUnresolved(barcode: string, reason: string): void {
@@ -157,6 +161,11 @@ export async function removeUnresolvedByBarcode(barcode: string): Promise<void> 
 
 /* ------------------------------------------------------------------ */
 /* Lookup memo: avoids paying for the same barcode twice.              */
+/*                                                                     */
+/* A barcode is only memoized once it has been confirmed into the      */
+/* list. A scan the user skips, and a barcode whose entry is later     */
+/* deleted, must stay out of the memo so the next search re-queries    */
+/* the databases instead of being answered from a stale cache.         */
 /* ------------------------------------------------------------------ */
 
 type MemoMap = Record<string, LookupMemo>;
@@ -169,9 +178,14 @@ export async function readMemo(barcode: string): Promise<LookupMemo | undefined>
   return memo;
 }
 
-export async function writeMemo(barcode: string, memo: Omit<LookupMemo, "savedAt">): Promise<void> {
+export async function writeMemo(
+  barcode: string,
+  memo: Omit<LookupMemo, "savedAt"> & { savedAt?: number },
+): Promise<void> {
   const all = (await get<MemoMap>(MEMO_KEY).catch(() => undefined)) ?? {};
-  all[barcode] = { ...memo, savedAt: Date.now() };
+  // The caller may pin `savedAt` (e.g. to the entry's `addedAt`) so the TTL is
+  // measured from when the disc was actually filed, not from when this ran.
+  all[barcode] = { ...memo, savedAt: memo.savedAt ?? Date.now() };
   const keys = Object.keys(all);
   if (keys.length > MEMO_LIMIT) {
     keys
@@ -180,6 +194,40 @@ export async function writeMemo(barcode: string, memo: Omit<LookupMemo, "savedAt
       .forEach((key) => delete all[key]);
   }
   await update(MEMO_KEY, () => all).catch(() => undefined);
+}
+
+/** Forget a barcode's cached title, so the next search hits the databases. */
+export async function removeMemo(barcode: string): Promise<void> {
+  if (!barcode) return;
+  await update(
+    MEMO_KEY,
+    (current) => {
+      const all = (current as MemoMap | undefined) ?? {};
+      if (!(barcode in all)) return all;
+      const next = { ...all };
+      delete next[barcode];
+      return next;
+    },
+  ).catch(() => undefined);
+}
+
+/**
+ * Drop the memo for a stored barcode, trying both the raw and EAN-13 forms.
+ * Entries are keyed by their raw scan, but memos are keyed by EAN-13.
+ */
+export async function forgetBarcodeMemo(barcode: string): Promise<void> {
+  const parsed = normalizeBarcode(barcode);
+  const keys = new Set([barcode]);
+  if (parsed.ok) {
+    keys.add(parsed.value.ean13);
+    keys.add(parsed.value.raw);
+  }
+  await Promise.all([...keys].map((key) => removeMemo(key)));
+}
+
+/** Drop every memo. Used when the whole list is cleared. */
+export async function clearMemos(): Promise<void> {
+  await set(MEMO_KEY, {}).catch(() => undefined);
 }
 
 /* ------------------------------------------------------------------ */

@@ -24,6 +24,12 @@ export interface ApiUsageEntry {
   requests: number;
   /** Requests the API answered with an error, or never answered at all. */
   errors: number;
+  /**
+   * Barcodes answered from the on-device lookup memo instead of the network.
+   * These spend no quota, but they are why re-scanning a known disc leaves the
+   * request counters untouched, so they are tracked next to the requests.
+   */
+  memoHits: number;
   /** Summed latency in milliseconds, kept so an average can be shown. */
   totalMs: number;
 }
@@ -46,7 +52,7 @@ export function dayKey(now: number = Date.now()): string {
 }
 
 function emptyEntry(now: number): ApiUsageEntry {
-  return { day: dayKey(now), requests: 0, errors: 0, totalMs: 0 };
+  return { day: dayKey(now), requests: 0, errors: 0, memoHits: 0, totalMs: 0 };
 }
 
 export const apiUsageStore = createStore<ApiUsageState>({ usage: {}, loaded: false });
@@ -61,7 +67,13 @@ function withCurrentDay(usage: Record<string, ApiUsageEntry>, now: number): Reco
   const today = dayKey(now);
   const next: Record<string, ApiUsageEntry> = {};
   for (const [apiId, entry] of Object.entries(usage)) {
-    next[apiId] = entry?.day === today ? entry : emptyEntry(now);
+    if (!entry || entry.day !== today) {
+      next[apiId] = emptyEntry(now);
+      continue;
+    }
+    // `memoHits` was added after the first release, so counters written by an
+    // older build have no value for it; backfill rather than show `undefined`.
+    next[apiId] = { ...entry, memoHits: entry.memoHits ?? 0 };
   }
   return next;
 }
@@ -103,8 +115,24 @@ export function recordApiRequest(apiId: string, outcome: ApiRequestOutcome): voi
     day: current.day,
     requests: current.requests + 1,
     errors: current.errors + (outcome.ok ? 0 : 1),
+    memoHits: current.memoHits ?? 0,
     totalMs: current.totalMs + Math.max(0, outcome.durationMs ?? 0),
   };
+  apiUsageStore.set({ usage, loaded: true });
+  persist(usage);
+}
+
+/**
+ * Count one barcode answered from the lookup memo.
+ *
+ * A memo hit is the opposite of a request: it costs no quota. It is counted so
+ * the Settings card can explain a scan that left every request counter alone
+ * instead of looking like logging is broken.
+ */
+export function recordMemoHit(apiId: string, now: number = Date.now()): void {
+  const usage = withCurrentDay(apiUsageStore.get().usage, now);
+  const current = usage[apiId] ?? emptyEntry(now);
+  usage[apiId] = { ...current, memoHits: (current.memoHits ?? 0) + 1 };
   apiUsageStore.set({ usage, loaded: true });
   persist(usage);
 }

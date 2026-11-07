@@ -158,14 +158,25 @@ function ApiUsageCard() {
     { id: TMDB_API_ID, label: "TMDB" },
   ];
   const total = rows.reduce((sum, row) => sum + (usage[row.id]?.requests ?? 0), 0);
+  const cached = rows.reduce((sum, row) => sum + (usage[row.id]?.memoHits ?? 0), 0);
+  const scans = total + cached;
 
   return (
     <div className="card stack">
       <h2>API requests</h2>
       <p className="hint">
-        Requests sent today, counted on this device. {total} {total === 1 ? "request" : "requests"}{" "}
-        total.
+        Counted on this device today. {total} {total === 1 ? "request" : "requests"}
+        {cached > 0
+          ? ` and ${cached} answered from cache, across ${scans} ${scans === 1 ? "scan" : "scans"}`
+          : ""}
+        .
       </p>
+      {cached > 0 && (
+        <p className="hint">
+          A barcode looked up before is answered from this device's cache, so a re-scan adds no
+          requests — that is why the counters can stay still on a repeat scan.
+        </p>
+      )}
       <div className="stack">
         {rows.map((row) => (
           <UsageRow key={row.id} label={row.label} entry={usage[row.id]} />
@@ -174,7 +185,7 @@ function ApiUsageCard() {
       <button
         type="button"
         className="btn small ghost"
-        disabled={total === 0}
+        disabled={total === 0 && cached === 0}
         onClick={() => clearApiUsage()}
       >
         Reset counters
@@ -186,6 +197,7 @@ function ApiUsageCard() {
 function UsageRow({ label, entry }: { label: string; entry: ApiUsageEntry | undefined }) {
   const requests = entry?.requests ?? 0;
   const errors = entry?.errors ?? 0;
+  const memoHits = entry?.memoHits ?? 0;
   const average = averageLatencyMs(entry);
 
   return (
@@ -194,6 +206,7 @@ function UsageRow({ label, entry }: { label: string; entry: ApiUsageEntry | unde
       <span className="hint">
         {requests} {requests === 1 ? "request" : "requests"}
         {errors > 0 ? ` · ${errors} failed` : ""}
+        {memoHits > 0 ? ` · ${memoHits} from cache` : ""}
         {average !== null ? ` · ~${average} ms` : ""}
       </span>
     </div>

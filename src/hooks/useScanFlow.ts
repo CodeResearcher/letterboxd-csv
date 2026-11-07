@@ -15,6 +15,7 @@ import {
   writeMemo,
 } from "../store/collection";
 import { settingsStore } from "../store/settings";
+import { recordMemoHit } from "../store/apiUsage";
 import type { CollectionEntry } from "../store/types";
 
 export type FlowState =
@@ -23,6 +24,8 @@ export type FlowState =
   | {
       kind: "confirm";
       barcode: string;
+      /** Canonical EAN-13, used as the lookup-memo key if this entry is added. */
+      ean13: string;
       rawTitle: string;
       providerId: string;
       providerLabel: string;
@@ -87,6 +90,10 @@ export function useScanFlow() {
         settings,
         cooldowns: cooldownsRef.current,
         memo,
+        // A cached barcode spends no provider quota, so count it as a memo hit
+        // rather than a request. Without this, a re-scan leaves every request
+        // counter at zero and looks like the counters are broken.
+        onMemoHit: (providerId) => recordMemoHit(providerId),
         onRateLimited: (providerId) => {
           cooldownsRef.current[providerId] = Date.now() + 10 * 60_000;
           void markRateLimited(providerId);
@@ -112,8 +119,6 @@ export function useScanFlow() {
         return;
       }
 
-      await writeMemo(code.ean13, { title: resolved.title, providerId: resolved.providerId });
-
       setFlow({
         kind: "working",
         barcode: code.raw,
@@ -132,6 +137,7 @@ export function useScanFlow() {
       setFlow({
         kind: "confirm",
         barcode: code.raw,
+        ean13: code.ean13,
         rawTitle: resolved.title,
         providerId: resolved.providerId,
         providerLabel: resolved.providerLabel,
@@ -213,6 +219,14 @@ export function useScanFlow() {
     });
 
     if (outcome.status === "added") {
+      // Only a filed disc is memoized. A barcode the user skips, or an entry
+      // that is later deleted, is left out (and removeEntry clears it), so the
+      // next search for the same code queries the databases again.
+      void writeMemo(current.ean13, {
+        title: current.rawTitle,
+        providerId: current.providerId,
+        savedAt: outcome.entry.addedAt,
+      });
       setFlow({
         kind: "message",
         tone: "success",
@@ -239,9 +253,11 @@ export function useScanFlow() {
   /** Re-match an existing entry against TMDB, starting from its stored title. */
   const editMatch = useCallback(
     async (entry: CollectionEntry) => {
+      const parsed = normalizeBarcode(entry.barcode);
       setFlow({
         kind: "confirm",
         barcode: entry.barcode,
+        ean13: parsed.ok ? parsed.value.ean13 : entry.barcode,
         rawTitle: entry.rawTitle,
         providerId: entry.providerId,
         providerLabel: "your list",
