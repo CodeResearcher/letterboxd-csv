@@ -9,8 +9,13 @@ type CameraState =
 
 export interface ScannerProps {
   onScan: (barcode: string) => void;
-  /** Scanning pauses while a confirmation is on screen. */
-  paused: boolean;
+  /**
+   * Start the camera as soon as the scanner mounts. The Scan tab shows this
+   * component only when the user has asked for the camera, so starting here
+   * keeps the whole action a single tap instead of a "Start camera" button
+   * nested inside another one.
+   */
+  autoStart?: boolean;
 }
 
 /**
@@ -21,7 +26,7 @@ export interface ScannerProps {
  * must repeat on consecutive decodes before it is accepted, which filters the
  * partial reads that thin disc barcodes produce.
  */
-export function Scanner({ onScan, paused }: ScannerProps) {
+export function Scanner({ onScan, autoStart = false }: ScannerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const stopRef = useRef<(() => void) | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -29,9 +34,6 @@ export function Scanner({ onScan, paused }: ScannerProps) {
   const lastAcceptedRef = useRef<{ text: string; at: number }>({ text: "", at: 0 });
   const onScanRef = useRef(onScan);
   onScanRef.current = onScan;
-  // Read inside the decode callback, which is created once per camera start.
-  const pausedRef = useRef(paused);
-  pausedRef.current = paused;
 
   const [camera, setCamera] = useState<CameraState>({ kind: "idle" });
   const [torchAvailable, setTorchAvailable] = useState(false);
@@ -63,8 +65,6 @@ export function Scanner({ onScan, paused }: ScannerProps) {
       }
 
       const stopFn = await engineRef.current.start(video, (hit) => {
-        // Stay quiet while a confirmation is on screen.
-        if (pausedRef.current) return;
         const text = hit.text;
         const last = lastHitRef.current;
         // Accept only when the same code is decoded twice in a row.
@@ -118,6 +118,13 @@ export function Scanner({ onScan, paused }: ScannerProps) {
       stopRef.current = null;
     };
   }, []);
+
+  // The parent mounts this component on the user's "start scanning" tap, so an
+  // auto-start here is what makes that a single tap rather than two. `start` is
+  // stable, so this runs once per mount.
+  useEffect(() => {
+    if (autoStart) void start();
+  }, [autoStart, start]);
 
   const toggleTorch = useCallback(async () => {
     const stream = streamRef.current;

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FlowState } from "../hooks/useScanFlow";
 import type { TmdbResult } from "../services/tmdb";
 import { Scanner } from "./Scanner";
@@ -28,7 +28,21 @@ export function ScanTab({
   onSkip,
   onDismiss,
 }: ScanTabProps) {
-  const [showCamera, setShowCamera] = useState(true);
+  // The camera is torn down as soon as a lookup finishes. While it is live the
+  // scanner holds an open stream and occupies the camera lens, and after a
+  // delete-then-rescan the stale result banner would otherwise keep it paused,
+  // so the disc in front of the lens could never be read again. Reopening is one
+  // tap, and that tap also clears the previous result.
+  const [cameraOpen, setCameraOpen] = useState(false);
+
+  // A lookup in flight or a result on screen ends the "point at the next disc"
+  // intent, so the open flag is dropped. That keeps a single camera control
+  // visible in every state instead of a "Start camera" button that sits under a
+  // camera that is still running.
+  const busy = flow.kind !== "idle";
+  useEffect(() => {
+    if (busy) setCameraOpen(false);
+  }, [busy]);
 
   if (flow.kind === "confirm") {
     return (
@@ -47,6 +61,11 @@ export function ScanTab({
       />
     );
   }
+
+  // Only a clean idle screen keeps the camera on: a lookup in flight is already
+  // reading a code, and a result or error message means the user needs to read
+  // it and decide, not keep the lens pointed at the case.
+  const cameraLive = cameraOpen && flow.kind === "idle";
 
   return (
     <div className="stack">
@@ -83,20 +102,30 @@ export function ScanTab({
         </div>
       )}
 
-      {showCamera ? (
+      {cameraLive ? (
         <>
-          <Scanner onScan={onLookup} paused={flow.kind !== "idle"} />
+          <Scanner onScan={onLookup} autoStart />
           <button
             type="button"
             className="btn ghost block small"
-            onClick={() => setShowCamera(false)}
+            onClick={() => setCameraOpen(false)}
           >
             Hide camera
           </button>
         </>
       ) : (
-        <button type="button" className="btn primary block" onClick={() => setShowCamera(true)}>
-          Show camera
+        <button
+          type="button"
+          className="btn primary block"
+          onClick={() => {
+            // Picking the camera up again means "next disc", so the previous
+            // result is dismissed first. That matters after deleting an entry:
+            // the leftover "already in your list" banner must not block a rescan.
+            onDismiss();
+            setCameraOpen(true);
+          }}
+        >
+          {cameraOpen ? "Resume camera" : "Start camera"}
         </button>
       )}
 
