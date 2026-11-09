@@ -68,6 +68,12 @@ a {
   color: var(--accent);
 }
 
+/* Signup link beside a provider name; small and unobtrusive next to the key. */
+.provider-link {
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
 /* ---------------------------------------------------------------- layout */
 
 .app {

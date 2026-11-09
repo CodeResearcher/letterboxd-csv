@@ -21,6 +21,7 @@ const API_BASE = "https://api.upcdatabase.org/product";
 export const upcdatabaseProvider: BarcodeProvider = {
   id: "upcdatabase",
   label: "UPC Database",
+  signupUrl: "https://upcdatabase.org/signup",
   credentialFields: [
     { key: "apiKey", label: "API key", required: true, secret: true, placeholder: "API key" },
   ],

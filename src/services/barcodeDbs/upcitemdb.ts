@@ -18,6 +18,7 @@ const PAID_BASE = "https://api.upcitemdb.com/prod/v1/lookup";
 export const upcitemdbProvider: BarcodeProvider = {
   id: "upcitemdb",
   label: "UPCitemdb",
+  signupUrl: "https://devs.upcitemdb.com/",
   credentialFields: [
     {
       key: "apiKey",

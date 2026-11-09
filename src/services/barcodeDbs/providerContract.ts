@@ -49,6 +49,12 @@ export function runProviderContract(
       }
     });
 
+    it("links to an https signup page so a user can get a key", () => {
+      // Every provider needs a key (or an optional one), so the UI offers a
+      // link to register. A missing or non-https URL would be a dead end.
+      expect(provider.signupUrl).toMatch(/^https:\/\//);
+    });
+
     it("reports itself configured only when required fields are present", () => {
       const required = provider.credentialFields.filter((field) => field.required);
       const empty = Object.fromEntries(

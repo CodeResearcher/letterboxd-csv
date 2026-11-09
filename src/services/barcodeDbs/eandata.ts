@@ -14,6 +14,7 @@ const API_BASE = "https://eandata.com/feed/";
 export const eandataProvider: BarcodeProvider = {
   id: "eandata",
   label: "EANdata",
+  signupUrl: "https://eandata.com/login.php",
   credentialFields: [
     { key: "apiKey", label: "API key", required: true, secret: true, placeholder: "keycode" },
   ],

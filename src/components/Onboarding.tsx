@@ -48,8 +48,18 @@ export function ProviderKeyList({ settings }: { settings: ProviderSettings }) {
           <div key={provider.id} className="stack">
             <div className="row between">
               <div className="grow">
-                <div className="row" style={{ gap: 8 }}>
+                <div className="row" style={{ gap: 8, alignItems: "baseline" }}>
                   <strong style={{ fontSize: "0.9rem" }}>{provider.label}</strong>
+                  {provider.signupUrl && (
+                    <a
+                      className="provider-link"
+                      href={provider.signupUrl}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                    >
+                      register for a key
+                    </a>
+                  )}
                 </div>
               </div>
               <button

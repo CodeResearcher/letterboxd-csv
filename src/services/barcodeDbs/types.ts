@@ -42,6 +42,11 @@ export interface BarcodeProvider {
   id: string;
   /** Shown in Settings and in "found via" labels. */
   label: string;
+  /**
+   * Where the user registers and picks up a key. Rendered as a link next to the
+   * credential inputs so a new user is not left to guess the signup page.
+   */
+  signupUrl?: string;
   credentialFields: CredentialField[];
   supports?(code: NormalizedBarcode): boolean;
   lookup(ctx: LookupContext): Promise<ProviderLookupResult>;

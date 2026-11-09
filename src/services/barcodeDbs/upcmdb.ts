@@ -23,6 +23,7 @@ function pickRecord(data: unknown): Record<string, unknown> | null {
 export const upcmdbProvider: BarcodeProvider = {
   id: "upcmdb",
   label: "UPCMDB",
+  signupUrl: "https://upcmdb.com/signup",
   credentialFields: [
     { key: "apiKey", label: "API key", required: true, secret: true, placeholder: "x-api-key" },
   ],
